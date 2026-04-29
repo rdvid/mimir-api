@@ -1,0 +1,40 @@
+{
+    "name": "Mimir",
+    "version": "0.0.1",
+    "description": "Mimir is a personal finance management system that helps you track your income and expenses.",
+    "type": "module",
+    "main": "dist/src/index.js",
+    "scripts": {
+        "start": "node dist/src/index.js",
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc -p tsconfig.json",
+        "format": "npx prettier --write ."
+    },
+    "author": "Rafael David",
+    "license": "MIT",
+    "dependencies": {
+        "@types/express-serve-static-core": "^5.1.1",
+        "@types/js-cookie": "^3.0.6",
+        "bcrypt": "^5.1.1",
+        "cloudinary": "^2.4.0",
+        "cookie-parser": "^1.4.6",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.5",
+        "express": "^4.19.2",
+        "google-auth-library": "^9.15.1",
+        "js-cookie": "^3.0.5",
+        "jsonwebtoken": "^9.0.2",
+        "mongoose": "^8.5.3",
+        "morgan": "^1.10.0",
+        "multer": "^1.4.5-lts.1",
+        "nodemailer": "^6.9.14",
+        "ua-parser-js": "^2.0.4"
+    },
+    "devDependencies": {
+        "@types/express": "latest",
+        "@types/node": "latest",
+        "prettier": "^3.3.3",
+        "tsx": "latest",
+        "typescript": "latest"
+    }
+}
