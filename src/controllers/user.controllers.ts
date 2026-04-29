@@ -16,7 +16,6 @@ import { createSession, createUserAndSendVerification } from '../services/auth.s
 import type { Request, Response } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 
-
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 interface JwtPayloadWithId {

@@ -4,7 +4,6 @@ import UserModel from '../models/user.model.js';
 import { ApiError } from '../utils/ApiError.js';
 import type { NextFunction, Request, Response } from 'express';
 
-
 const verifyJwtToken = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
         const authorizationHeader = req.header('Authorization');

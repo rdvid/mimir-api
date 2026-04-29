@@ -16,13 +16,13 @@ REST API for personal finance management: users, expenses, wallet and lent money
 
 ## What the API covers
 
--   **Authentication**: registration, login, Google sign-in, JWT sessions, password reset and account verification links sent by email, logout, active session listing and revocation.
--   **Profile**: fetch/update user data, avatar upload (Cloudinary).
--   **Expenses**: add for today or a past date, list by date or all dates, edit and delete.
--   **Money**: add pocket money, add/track lent money and mark as received.
--   **Reports**: monthly totals for expenses and added money (authenticated).
--   **Admin**: list all users, send newsletter (protected routes; intended for admin clients).
--   **Account lifecycle**: delete account (with related archival/deletion logic on the server).
+- **Authentication**: registration, login, Google sign-in, JWT sessions, password reset and account verification links sent by email, logout, active session listing and revocation.
+- **Profile**: fetch/update user data, avatar upload (Cloudinary).
+- **Expenses**: add for today or a past date, list by date or all dates, edit and delete.
+- **Money**: add pocket money, add/track lent money and mark as received.
+- **Reports**: monthly totals for expenses and added money (authenticated).
+- **Admin**: list all users, send newsletter (protected routes; intended for admin clients).
+- **Account lifecycle**: delete account (with related archival/deletion logic on the server).
 
 ## Project structure
 
@@ -68,9 +68,9 @@ moneytrack/
 
 ### Prerequisites
 
--   Node.js 16+
--   npm or yarn
--   MongoDB (local instance or Atlas URI)
+- Node.js 16+
+- npm or yarn
+- MongoDB (local instance or Atlas URI)
 
 ### Setup
 
