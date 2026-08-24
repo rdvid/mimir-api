@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { app } from './app.js';
-import connectToDb from './db/conn.js';
+import { connectToDb } from './db/knex.js';
 
 dotenv.config({ path: '.env' });
 

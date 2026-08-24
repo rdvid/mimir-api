@@ -30,9 +30,9 @@ REST API for personal finance management: users, expenses, wallet and lent money
 moneytrack/
 ├── src/
 │   ├── controllers/         # Route handlers
-│   ├── db/                  # MongoDB connection
+│   ├── db/                  # PostgreSQL connection (Knex)
 │   ├── middleware/          # Auth, uploads
-│   ├── models/              # Mongoose models
+│   ├── repositories/        # Knex data access layer
 │   ├── routes/              # Express routers
 │   ├── services/            # Auth and shared logic
 │   └── utils/               # Email, Cloudinary helpers, responses, etc.
@@ -51,7 +51,8 @@ moneytrack/
 
 ![Node.js](https://img.shields.io/badge/node.js-%2343853D.svg?style=for-the-badge&logo=node.js&logoColor=white)
 ![Express.js](https://img.shields.io/badge/express.js-%23404d59.svg?style=for-the-badge&logo=express&logoColor=%2361DAFB)
-![MongoDB](https://img.shields.io/badge/mongodb-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+![Knex.js](https://img.shields.io/badge/knex.js-%23D26B38.svg?style=for-the-badge&logo=knex&logoColor=white)
 
 **Security and auth**
 
@@ -68,9 +69,9 @@ moneytrack/
 
 ### Prerequisites
 
-- Node.js 16+
-- npm or yarn
-- MongoDB (local instance or Atlas URI)
+- Node.js 24+
+- npm
+- PostgreSQL (local instance or connection URL)
 
 ### Setup
 
@@ -78,7 +79,7 @@ moneytrack/
 
     ```bash
     git clone <repository-url>
-    cd moneytrack
+    cd mimir-api
     ```
 
 2. Install dependencies:
@@ -89,7 +90,13 @@ moneytrack/
 
 3. Create a `.env` file in the project root (see [Environment variables](#environment-variables)).
 
-4. Start the API:
+4. Run database migrations:
+
+    ```bash
+    npm run migrate
+    ```
+
+5. Start the API:
 
     ```bash
     npm run dev
@@ -105,11 +112,13 @@ The app listens on the port set by `PORT` (for example `http://localhost:5000`).
     cp .env.default .env
     ```
 
-2. Build and start API + MongoDB:
+2. Build and start API + PostgreSQL:
 
     ```bash
     docker compose up --build -d
     ```
+
+    Migrations run automatically when the API starts.
 
 3. Follow logs:
 
@@ -123,16 +132,41 @@ The app listens on the port set by `PORT` (for example `http://localhost:5000`).
     docker compose down
     ```
 
-Use `docker compose down -v` if you also want to remove the MongoDB volume.
+Use `docker compose down -v` if you also want to remove the PostgreSQL volume.
+
+### Docker with hot reload (local dev)
+
+For development with automatic restarts when you edit `src/`:
+
+```bash
+npm run docker:dev
+```
+
+This merges `docker-compose.dev.yml`, which:
+
+- Runs `tsx watch` instead of the compiled `dist` build
+- Bind-mounts your project into the container (keeps `node_modules` in a Docker volume)
+- Sets `CHOKIDAR_USE_POLLING` for reliable file watching in Docker
+
+Stop with `npm run docker:dev:down` or `Ctrl+C` then `docker compose -f docker-compose.yml -f docker-compose.dev.yml down`.
+
+Production-style build (no hot reload):
+
+```bash
+docker compose up --build -d
+```
 
 ## Scripts
 
-| Command          | Description                                 |
-| ---------------- | ------------------------------------------- |
-| `npm run dev`    | Development server with `tsx watch`         |
-| `npm run build`  | Compile TypeScript to `dist`                |
-| `npm run start`  | Production start (`node dist/src/index.js`) |
-| `npm run format` | Format with Prettier                        |
+| Command            | Description                                 |
+| ------------------ | ------------------------------------------- |
+| `npm run dev`      | Development server with `tsx watch`         |
+| `npm run docker:dev` | Docker Compose with hot reload (`tsx watch`) |
+| `npm run docker:dev:down` | Stop dev Docker stack                    |
+| `npm run build`    | Compile TypeScript to `dist`                |
+| `npm run start`    | Production start (`node dist/src/index.js`) |
+| `npm run migrate`  | Run Knex migrations                         |
+| `npm run format`   | Format with Prettier                        |
 
 ## API endpoints
 
@@ -223,7 +257,7 @@ Create `server/.env` with at least:
 | Variable                                   | Description                           |
 | ------------------------------------------ | ------------------------------------- |
 | `PORT`                                     | HTTP port                             |
-| `MONGO_URL`                                | MongoDB connection string             |
+| `DATABASE_URL`                             | PostgreSQL connection string          |
 | `ACCESS_TOKEN_SECRET_KEY`                  | Secret for JWT access tokens          |
 | `ACCESS_TOKEN_SECRET_EXPIRY`               | Access token TTL (e.g. `3d`)          |
 | `RESET_PASSWORD_TOKEN_SECRET`              | Secret for password reset tokens      |

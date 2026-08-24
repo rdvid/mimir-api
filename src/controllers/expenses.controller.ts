@@ -1,20 +1,14 @@
-import UserModel from '../models/user.model.js';
+import { userRepository } from '../repositories/user.repository.js';
+import { expenseRepository } from '../repositories/expense.repository.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { getTodayDate } from '../utils/getCurrentDate.js';
-import ExpenseModel, { type Product } from '../models/expenses.model.js';
+import type { ProductInput } from '../types/expense.types.js';
 
 import type { Request, Response } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
-
-interface ProductInput {
-    name: string;
-    price: number;
-    category: string;
-    label?: string;
-}
 
 interface AddTodayExpensesBody {
     productsArray: ProductInput[];
@@ -62,27 +56,19 @@ export const addTodayExpenses = asyncHandler(
             (total: number, item: ProductInput) => total + item.price,
             0,
         );
-        const firstExpensesOfToday = await ExpenseModel.findOne({
-            user: userId,
-            date: currentDate,
-        });
+        const firstExpensesOfToday = await expenseRepository.findByUserAndDate(userId, currentDate);
 
         let createdExpenses: unknown;
         if (firstExpensesOfToday === null) {
-            createdExpenses = await ExpenseModel.create({
-                user: userId,
-                products: productsArray,
-            });
+            createdExpenses = await expenseRepository.createWithProducts(
+                userId,
+                currentDate,
+                productsArray,
+            );
         } else {
-            createdExpenses = await ExpenseModel.updateOne(
-                { user: userId, date: currentDate },
-                {
-                    $addToSet: {
-                        products: {
-                            $each: productsArray,
-                        },
-                    },
-                },
+            createdExpenses = await expenseRepository.addProducts(
+                firstExpensesOfToday._id,
+                productsArray,
             );
         }
 
@@ -90,17 +76,16 @@ export const addTodayExpenses = asyncHandler(
             throw new ApiError(500, 'Something went wrong!!');
         }
 
-        const user = await UserModel.findOne({ _id: userId });
+        const user = await userRepository.findById(userId);
         if (!user) {
             throw new ApiError(404, 'User not found');
         }
         const newBalance = parseFloat(user.currentPocketMoney) - parseFloat(String(totalExpenses));
-        user.currentPocketMoney = newBalance.toString();
-        await user.save();
+        await userRepository.updateCurrentPocketMoney(userId, newBalance.toString());
 
         return res.status(201).json(
             new ApiResponse(201, createdExpenses, {
-                currentPocketMoney: user.currentPocketMoney,
+                currentPocketMoney: newBalance.toString(),
             }),
         );
     },
@@ -108,10 +93,7 @@ export const addTodayExpenses = asyncHandler(
 
 export const showTodayExpenses = asyncHandler(async (req: Request, res: Response) => {
     const currentDate = getTodayDate();
-    const todayExpenses = await ExpenseModel.findOne({
-        user: req.user._id,
-        date: currentDate,
-    });
+    const todayExpenses = await expenseRepository.findByUserAndDate(req.user._id, currentDate);
     const products = todayExpenses?.products || [];
     return res
         .status(200)
@@ -137,7 +119,7 @@ export const addParticularDateExpenses = asyncHandler(
         }
 
         const totalDaysExpenses = pastDaysExpensesArray.length;
-        const user = await UserModel.findById(userId);
+        const user = await userRepository.findById(userId);
         if (!user) {
             throw new ApiError(404, 'User not found');
         }
@@ -154,22 +136,19 @@ export const addParticularDateExpenses = asyncHandler(
                     0,
                 );
 
-                const firstExpensesOfDate = await ExpenseModel.findOne({
-                    user: userId,
-                    date,
-                });
+                const firstExpensesOfDate = await expenseRepository.findByUserAndDate(userId, date);
 
                 let createdExpenses: unknown;
                 if (!firstExpensesOfDate) {
-                    createdExpenses = await ExpenseModel.create({
-                        user: userId,
+                    createdExpenses = await expenseRepository.createWithProducts(
+                        userId,
                         date,
-                        products: productsArray,
-                    });
+                        productsArray,
+                    );
                 } else {
-                    createdExpenses = await ExpenseModel.updateOne(
-                        { user: userId, date },
-                        { $addToSet: { products: { $each: productsArray } } },
+                    createdExpenses = await expenseRepository.addProducts(
+                        firstExpensesOfDate._id,
+                        productsArray,
                     );
                 }
 
@@ -180,8 +159,7 @@ export const addParticularDateExpenses = asyncHandler(
             }
         }
 
-        user.currentPocketMoney = currentPocketMoney.toString();
-        await user.save();
+        await userRepository.updateCurrentPocketMoney(userId, currentPocketMoney.toString());
 
         return res
             .status(201)
@@ -205,10 +183,7 @@ export const showParticularDateExpenses = asyncHandler(
         if (!date) {
             throw new ApiError(400, 'Date is required!!');
         }
-        const particularDateExpenses = await ExpenseModel.findOne({
-            user: userId,
-            date,
-        });
+        const particularDateExpenses = await expenseRepository.findByUserAndDate(userId, date);
         if (!particularDateExpenses) {
             return res.status(200).json(new ApiResponse(200, null, 'No Expenses Found !!'));
         }
@@ -220,10 +195,8 @@ export const showParticularDateExpenses = asyncHandler(
 
 export const showAllDateExpenses = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user._id;
-    const allDateExpenses = await ExpenseModel.find({ user: userId }).sort({
-        date: -1,
-    });
-    if (!allDateExpenses) {
+    const allDateExpenses = await expenseRepository.findByUserId(userId);
+    if (!allDateExpenses || allDateExpenses.length === 0) {
         throw new ApiError(404, 'No expenses found!!');
     }
     return res
@@ -254,19 +227,13 @@ export const editUserExpenses = asyncHandler(
             throw new ApiError(400, 'Invalid input values.');
         }
 
-        const existExpenses = await ExpenseModel.findOne({
-            user: userId,
-            date: actualDate,
-        });
+        const existExpenses = await expenseRepository.findByUserAndDate(userId, actualDate);
 
         if (!existExpenses) {
             throw new ApiError(500, 'Something went wrong!!');
         }
 
-        const expensesFound = existExpenses?.products?.find(
-            (prod: Product & { _id?: { toString(): string } }) =>
-                prod._id?.toString() === expenseId,
-        );
+        const expensesFound = existExpenses.products.find((prod) => prod._id === expenseId);
         const actualExpensePrice = expensesFound?.price;
 
         if (typeof actualExpensePrice !== 'number' || Number.isNaN(actualExpensePrice)) {
@@ -274,47 +241,19 @@ export const editUserExpenses = asyncHandler(
         }
 
         if (actualDate === expenseDate && expensesFound) {
-            expensesFound.name = expenseName;
-            expensesFound.price = expensePrice;
-            expensesFound.category = expenseCategory;
-            expensesFound.label = selectedLabel;
-            await existExpenses.save();
-        } else {
-            const existingExpenseCollection = await ExpenseModel.findOneAndUpdate(
-                { user: userId, date: actualDate },
-                { $pull: { products: { _id: expenseId } } },
-                { new: true },
-            );
-
-            if (existingExpenseCollection && existingExpenseCollection.products.length === 0) {
-                await ExpenseModel.findOneAndDelete({ user: userId, date: actualDate });
-            }
-
-            const expenseNewDateExist = await ExpenseModel.findOne({
-                user: userId,
-                date: expenseDate,
-            });
-
-            const productObject = {
+            await expenseRepository.updateProduct(existExpenses._id, expenseId, {
                 name: expenseName,
                 price: expensePrice,
                 category: expenseCategory,
                 label: selectedLabel,
-            };
-
-            if (!expenseNewDateExist) {
-                await ExpenseModel.create({
-                    user: userId,
-                    products: [productObject],
-                    date: expenseDate,
-                });
-            } else {
-                await ExpenseModel.findOneAndUpdate(
-                    { user: userId, date: expenseDate },
-                    { $addToSet: { products: productObject } },
-                    { new: true },
-                );
-            }
+            });
+        } else {
+            await expenseRepository.moveProductToDate(userId, expenseId, actualDate, expenseDate, {
+                name: expenseName,
+                price: expensePrice,
+                category: expenseCategory,
+                label: selectedLabel,
+            });
         }
 
         const user = req.user;
@@ -334,8 +273,7 @@ export const editUserExpenses = asyncHandler(
             throw new ApiError(500, 'New balance calculation failed.');
         }
 
-        user.currentPocketMoney = newBalance.toFixed(2);
-        await user.save();
+        await userRepository.updateCurrentPocketMoney(userId, newBalance.toFixed(2));
         return res.status(201).json(new ApiResponse(201, null, 'Expenses updated successfully!'));
     },
 );
@@ -349,34 +287,21 @@ export const deleteUserExpenses = asyncHandler(
             throw new ApiError(400, 'Invalid expense date format. Expected DD-MM-YYYY.');
         }
 
-        const existingExpense = await ExpenseModel.findOne(
-            { user: userId, date: expenseDate, 'products._id': expenseId },
-            { 'products.$': 1 },
-        );
-
-        const foundProduct = existingExpense?.products?.[0];
-        if (!foundProduct) {
+        const result = await expenseRepository.findProductById(userId, expenseDate, expenseId);
+        if (!result) {
             throw new ApiError(404, 'Expense not found.');
         }
 
-        const expensePrice = foundProduct.price;
+        const expensePrice = result.product.price;
 
-        const updatedExpense = await ExpenseModel.findOneAndUpdate(
-            { user: userId, date: expenseDate },
-            { $pull: { products: { _id: expenseId } } },
-            { new: true },
-        );
-
-        if (updatedExpense && updatedExpense.products.length === 0) {
-            await ExpenseModel.deleteOne({ _id: updatedExpense._id });
-        }
+        await expenseRepository.removeProduct(result.expense._id, expenseId);
+        await expenseRepository.deleteIfEmpty(result.expense._id);
 
         if (isAddPriceToPocketMoney) {
             const user = req.user;
             const newBalance =
                 parseFloat(user.currentPocketMoney) + parseFloat(String(expensePrice || 0));
-            user.currentPocketMoney = newBalance.toString();
-            await user.save();
+            await userRepository.updateCurrentPocketMoney(userId, newBalance.toString());
         }
 
         return res.status(201).json(new ApiResponse(201, null, 'Expense deleted successfully!'));

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import ExpenseModel, { type ExpenseDocument, type Product } from '../models/expenses.model.js';
-import type { LentMoneyHistoryItem, PocketMoneyHistoryItem } from '../models/user.model.js';
+import { expenseRepository } from '../repositories/expense.repository.js';
+import type { LentMoneyHistoryItem, PocketMoneyHistoryItem } from '../types/user.types.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import asyncHandler from '../utils/asyncHandler.js';
@@ -20,10 +20,7 @@ export const TotalExpensesAndAddedMoneyOfMonth = asyncHandler(
             throw new ApiError(500, 'Month and year should be string!!');
         }
 
-        const monthExpenses = await ExpenseModel.find({
-            user: userId,
-            date: { $regex: `^\\d{2}-${month}-${year}` },
-        });
+        const monthExpenses = await expenseRepository.findByUserAndMonth(userId, month, year);
 
         let GroceriesExpenses = 0;
         let Housing_UtilitiesExpenses = 0;
@@ -34,36 +31,30 @@ export const TotalExpensesAndAddedMoneyOfMonth = asyncHandler(
         let TransportationExpenses = 0;
         let MiscellaneousExpenses = 0;
 
-        const totalExpenses = monthExpenses.reduce(
-            (accumulator: number, currentArray: ExpenseDocument) => {
-                const productTotal = currentArray.products.reduce(
-                    (innerAccu: number, product: Product) => {
-                        if (product.category === 'Groceries') {
-                            GroceriesExpenses += product.price;
-                        } else if (product.category === 'Housing & Utilities') {
-                            Housing_UtilitiesExpenses += product.price;
-                        } else if (product.category === 'Medical') {
-                            MedicalExpenses += product.price;
-                        } else if (product.category === 'Food') {
-                            FoodExpenses += product.price;
-                        } else if (product.category === 'Personal') {
-                            PersonalExpenses += product.price;
-                        } else if (product.category === 'Educational') {
-                            EducationalExpenses += product.price;
-                        } else if (product.category === 'Transportation') {
-                            TransportationExpenses += product.price;
-                        } else if (product.category === 'Miscellaneous') {
-                            MiscellaneousExpenses += product.price;
-                        }
-                        return innerAccu + product.price;
-                    },
-                    0,
-                );
+        const totalExpenses = monthExpenses.reduce((accumulator: number, currentExpense) => {
+            const productTotal = currentExpense.products.reduce((innerAccu: number, product) => {
+                if (product.category === 'Groceries') {
+                    GroceriesExpenses += product.price;
+                } else if (product.category === 'Housing & Utilities') {
+                    Housing_UtilitiesExpenses += product.price;
+                } else if (product.category === 'Medical') {
+                    MedicalExpenses += product.price;
+                } else if (product.category === 'Food') {
+                    FoodExpenses += product.price;
+                } else if (product.category === 'Personal') {
+                    PersonalExpenses += product.price;
+                } else if (product.category === 'Educational') {
+                    EducationalExpenses += product.price;
+                } else if (product.category === 'Transportation') {
+                    TransportationExpenses += product.price;
+                } else if (product.category === 'Miscellaneous') {
+                    MiscellaneousExpenses += product.price;
+                }
+                return innerAccu + product.price;
+            }, 0);
 
-                return accumulator + productTotal;
-            },
-            0,
-        );
+            return accumulator + productTotal;
+        }, 0);
 
         const categoryWiseExpensesData = {
             GroceriesExpenses,
@@ -87,13 +78,11 @@ export const TotalExpensesAndAddedMoneyOfMonth = asyncHandler(
             0,
         );
 
-        const lastExpense = await ExpenseModel.findOne().sort({ _id: -1 });
+        const lastExpense = await expenseRepository.findLastExpense();
         let lastTotalExpenses = 0;
         if (lastExpense) {
-            lastTotalExpenses = lastExpense.products?.reduce(
-                (accumulator: number, currentArray: Product) => {
-                    return accumulator + Number(currentArray.price);
-                },
+            lastTotalExpenses = lastExpense.products.reduce(
+                (accumulator: number, product) => accumulator + Number(product.price),
                 0,
             );
         }

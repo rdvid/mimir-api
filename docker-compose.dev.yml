@@ -1,0 +1,19 @@
+# Local development overlay — hot reload via tsx watch + bind mounts.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Or:    npm run docker:dev
+
+services:
+    api:
+        build:
+            dockerfile: Dockerfile.dev
+        volumes:
+            - .:/app
+            - api_node_modules:/app/node_modules
+        environment:
+            NODE_ENV: development
+            CHOKIDAR_USEPOLLING: 'true'
+        command: npm run dev
+        restart: 'no'
+
+volumes:
+    api_node_modules:

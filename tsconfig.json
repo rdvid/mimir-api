@@ -16,6 +16,6 @@
         "noUncheckedIndexedAccess": true,
         "forceConsistentCasingInFileNames": true
     },
-    "include": ["src/**/*"],
+    "include": ["src/**/*", "knexfile.ts"],
     "exclude": ["node_modules", "dist"]
 }

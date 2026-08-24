@@ -2,16 +2,18 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 import asyncHandler from '../utils/asyncHandler.js';
-import ExpenseModel from '../models/expenses.model.js';
-import deletedUser from '../models/deletedUser.model.js';
+import { userRepository } from '../repositories/user.repository.js';
 
 import { ApiError } from '../utils/ApiError.js';
 import { OAuth2Client } from 'google-auth-library';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { sendMessageToUser } from '../utils/EmailSend.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
-import UserModel, { type ActiveSession, type User } from '../models/user.model.js';
 import { createSession, createUserAndSendVerification } from '../services/auth.service.js';
+import {
+    generateResetPasswordToken,
+} from '../services/token.service.js';
+import type { ActiveSession } from '../types/user.types.js';
 
 import type { Request, Response } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
@@ -112,9 +114,7 @@ export const registerUser = asyncHandler(
             throw new ApiError(400, `${name} - Your All Fields Required!!`);
         }
 
-        const existedUser = await UserModel.findOne({
-            $or: [{ username }, { email }],
-        });
+        const existedUser = await userRepository.existsByUsernameOrEmail(username, email);
         if (existedUser) {
             throw new ApiError(400, `${username} - User Already Exist!!`);
         }
@@ -137,7 +137,7 @@ export const validateAccountVerification = asyncHandler(async (req: Request, res
     if (!decodedToken?._id) {
         throw new ApiError(400, 'Invalid token!!');
     }
-    const user = await UserModel.findById(decodedToken._id);
+    const user = await userRepository.findById(decodedToken._id);
     if (!user) {
         throw new ApiError(400, 'User not found!!');
     }
@@ -149,8 +149,7 @@ export const validateAccountVerification = asyncHandler(async (req: Request, res
         res.redirect(`${frontendURL}/account-already-verified`);
         return;
     }
-    user.isVerified = true;
-    await user.save({ validateBeforeSave: false });
+    await userRepository.setVerified(user._id);
     res.redirect(`${frontendURL}/account-verified`);
 });
 
@@ -195,24 +194,24 @@ export const loginUser = asyncHandler(
             throw new ApiError(400, `${identifier} - Your All Fields Required!!`);
         }
 
-        const existedUser = await UserModel.findOne({
-            $or: [{ email }, { username }],
-        }).select('+password');
+        const existedUser = await userRepository.findByEmailOrUsername(email, username, true);
         if (!existedUser) {
             throw new ApiError(400, `${email} - User does not Exist!!`);
         }
 
-        const isPasswordValid = await existedUser.isPasswordMatch(password);
+        const isPasswordValid = await userRepository.isPasswordMatch(existedUser, password);
         if (!isPasswordValid) {
             throw new ApiError(400, `${email} - Your credentials are invalid!!`);
         }
 
         await createSession(existedUser, req);
-        const user = await UserModel.findById(existedUser._id).select('-password');
-        const userObj = user?.toObject();
-        if (!userObj) {
+        const user = await userRepository.findById(existedUser._id);
+        if (!user) {
             throw new ApiError(500, 'Unable to load user');
         }
+
+        const userObj = { ...user };
+        delete userObj.password;
         userObj.activeSessions = userObj.activeSessions.slice(-1);
 
         res.status(200).json(new ApiResponse(200, userObj, 'Login Successfully!!'));
@@ -222,19 +221,12 @@ export const loginUser = asyncHandler(
 export const sentTokenToResetPassword = asyncHandler(
     async (req: Request<ParamsDictionary, unknown, EmailBody>, res: Response) => {
         const { email } = req.body;
-        const existedUser = await UserModel.findOne({ email });
+        const existedUser = await userRepository.findByEmailOrUsername(email);
         if (!existedUser) {
             throw new ApiError(404, 'User not found');
         }
 
-        const resetSecret = process.env.RESET_PASSWORD_TOKEN_SECRET;
-        if (!resetSecret) {
-            throw new ApiError(500, 'RESET_PASSWORD_TOKEN_SECRET is not configured');
-        }
-
-        const token = jwt.sign({ _id: existedUser._id }, resetSecret, {
-            expiresIn: process.env.RESET_PASSWORD_TOKEN_SECRET_EXPIRY,
-        });
+        const token = generateResetPasswordToken(existedUser._id);
 
         const isSentGmail = await sendMessageToUser(
             existedUser.name,
@@ -270,7 +262,7 @@ export const validateResetPasswordToken = asyncHandler(async (req: Request, res:
         throw new ApiError(500, 'FRONTEND_URL is not configured');
     }
 
-    const user = await UserModel.findById(decodedToken._id).select('_id');
+    const user = await userRepository.findById(decodedToken._id);
     if (!user) {
         throw new ApiError(404, 'User not found!!');
     }
@@ -284,20 +276,12 @@ export const resetPassword = asyncHandler(
             throw new ApiError(400, 'All Fields are required!!');
         }
 
-        const existedUser = await UserModel.findById(userId);
+        const existedUser = await userRepository.findById(userId);
         if (!existedUser) {
             throw new ApiError(400, 'Invalid Credentials!!');
         }
 
-        const hashPassword = await bcrypt.hash(newPassword, 10);
-        const updatedUser = await UserModel.findByIdAndUpdate(
-            { _id: existedUser._id },
-            { $set: { password: hashPassword } },
-            { new: true },
-        );
-        if (!updatedUser) {
-            throw new ApiError(500, 'Something went wrong!!');
-        }
+        await userRepository.updatePassword(userId, newPassword);
         return res.status(201).json(new ApiResponse(201, null, 'Password updated successfully!!'));
     },
 );
@@ -313,19 +297,15 @@ export const changeAvatar = asyncHandler(async (req: Request, res: Response) => 
     if (!hasSecureUrl(avatar)) {
         throw new ApiError(400, 'Failed to get url of avatar!!');
     }
-    const updatedUser = (await UserModel.findByIdAndUpdate(
-        req.user._id,
-        {
-            $set: {
-                avatar: avatar.secure_url,
-            },
-        },
-        { new: true },
-    ).select('avatar')) as Pick<User, 'avatar'> | null;
+    const updatedUser = await userRepository.updateFields(req.user._id, {
+        avatar: avatar.secure_url,
+    });
     if (!updatedUser) {
         throw new ApiError(500, 'Avatar not updated!!');
     }
-    res.status(201).json(new ApiResponse(201, updatedUser, 'Avatar changed successfully!'));
+    res.status(201).json(
+        new ApiResponse(201, { avatar: updatedUser.avatar }, 'Avatar changed successfully!'),
+    );
 });
 
 export const addUserPocketMoney = asyncHandler(
@@ -336,20 +316,20 @@ export const addUserPocketMoney = asyncHandler(
         }
         const user = req.user;
         const newAmount = parseFloat(user.currentPocketMoney) + parseFloat(amount);
-        user.PocketMoneyHistory.push({
-            date,
-            amount,
-            source,
-        });
-        user.currentPocketMoney = newAmount.toString();
-
-        await user.save();
+        const updatedUser = await userRepository.addPocketMoneyEntry(
+            user._id,
+            { date, amount, source },
+            newAmount.toString(),
+        );
+        if (!updatedUser) {
+            throw new ApiError(500, 'Failed to add pocket money');
+        }
         res.status(201).json(
             new ApiResponse(
                 201,
                 {
-                    PocketMoneyHistory: user.PocketMoneyHistory,
-                    currentPocketMoney: user.currentPocketMoney,
+                    PocketMoneyHistory: updatedUser.PocketMoneyHistory,
+                    currentPocketMoney: updatedUser.currentPocketMoney,
                 },
                 'Pocket money added successfully!',
             ),
@@ -376,7 +356,14 @@ export const changeUserCredentials = asyncHandler(
 
         const user = req.user;
         const userId = user._id;
-        const updatedFields: Partial<User> = {};
+        const updatedFields: {
+            name?: string;
+            dateOfBirth?: string;
+            instagramLink?: string;
+            facebookLink?: string;
+            profession?: string;
+            password?: string;
+        } = {};
 
         if (name) updatedFields.name = name;
         if (dob) updatedFields.dateOfBirth = dob;
@@ -385,21 +372,18 @@ export const changeUserCredentials = asyncHandler(
         if (profession) updatedFields.profession = profession;
 
         if (currentPassword && newPassword) {
-            if (!user.password) {
+            const userWithPassword = await userRepository.findById(userId, { includePassword: true });
+            if (!userWithPassword?.password) {
                 throw new ApiError(500, 'User password not found in database.');
             }
-            const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+            const isPasswordValid = await bcrypt.compare(currentPassword, userWithPassword.password);
             if (!isPasswordValid) {
                 throw new ApiError(401, 'Current password is incorrect.');
             }
             updatedFields.password = await bcrypt.hash(newPassword, 10);
         }
 
-        const updatedUser = await UserModel.findByIdAndUpdate(
-            userId,
-            { $set: updatedFields },
-            { new: true },
-        );
+        const updatedUser = await userRepository.updateFields(userId, updatedFields);
         if (!updatedUser) {
             throw new ApiError(404, 'User not found');
         }
@@ -413,23 +397,24 @@ export const deleteUserAccount = asyncHandler(
         const userId = req.user._id;
         const { password } = req.body;
 
-        const isPasswordMatch = await user?.isPasswordMatch(password);
+        const userWithPassword = await userRepository.findById(userId, { includePassword: true });
+        if (!userWithPassword) {
+            throw new ApiError(404, 'User not found');
+        }
+
+        const isPasswordMatch = await userRepository.isPasswordMatch(userWithPassword, password);
         if (!isPasswordMatch) {
             throw new ApiError(404, 'Invalid Password');
         }
 
         const { name, username, email, avatar, currentPocketMoney } = user;
-        const deleteUserDetails = {
+        await userRepository.deleteAccount(userId, {
             name,
             username,
             email,
             avatar,
             currentPocketMoney,
-        };
-
-        await ExpenseModel.deleteMany({ user: userId });
-        await UserModel.deleteOne({ _id: userId });
-        await deletedUser.create(deleteUserDetails);
+        });
 
         const isSentGmail = await sendMessageToUser(
             username,
@@ -452,19 +437,20 @@ export const logoutUser = asyncHandler(async (req: Request, res: Response) => {
         throw new ApiError(400, 'User not exist, not logout');
     }
 
-    user.activeSessions = user.activeSessions.filter(
-        (session: ActiveSession) => session.token !== req.token,
-    );
-    await user.save();
+    await userRepository.removeSessionByToken(user._id, req.token);
     return res.status(200).json(new ApiResponse(200, null, 'Successfully Logout'));
 });
 
 export const getAllAppUsersData = asyncHandler(async (_req: Request, res: Response) => {
-    const allUsers = await UserModel.find().select('-password -accessToken');
-    if (!allUsers) {
+    const allUsers = await userRepository.findAll();
+    const sanitized = allUsers.map((u) => {
+        const { password: _password, ...rest } = { ...u, password: undefined };
+        return rest;
+    });
+    if (sanitized.length === 0) {
         throw new ApiError(404, 'Users empty');
     }
-    return res.status(200).json(new ApiResponse(200, allUsers, 'All Users Found'));
+    return res.status(200).json(new ApiResponse(200, sanitized, 'All Users Found'));
 });
 
 export const sendNewsletterToUsers = asyncHandler(
@@ -528,20 +514,21 @@ export const AddLentMoney = asyncHandler(
             throw new ApiError(400, 'Invalid date format. Please use dd-mm-yyyy.');
         }
 
-        user.LentMoneyHistory.push({
-            personName,
-            price,
-            date,
-        });
-
         const newPocketMoney = parseFloat(user.currentPocketMoney) - parseFloat(price);
-        user.currentPocketMoney = newPocketMoney.toString();
+        const updatedUser = await userRepository.addLentMoneyEntry(
+            user._id,
+            { personName, price, date },
+            newPocketMoney.toString(),
+        );
+        if (!updatedUser) {
+            throw new ApiError(500, 'Failed to add lent money');
+        }
 
-        const totalLentMoney = user.LentMoneyHistory.reduce(
-            (total: number, lent: { price: string }) => total + parseFloat(lent.price),
+        const totalLentMoney = updatedUser.LentMoneyHistory.reduce(
+            (total: number, lent) => total + parseFloat(lent.price),
             0,
         );
-        await user.save();
+
         res.status(201).json(
             new ApiResponse(
                 201,
@@ -561,37 +548,23 @@ export const receivedLentMoney = asyncHandler(
             throw new ApiError(400, 'Lent Money Id cannot be empty');
         }
 
-        const lentMoneyObject = await UserModel.findOne(
-            { _id: user._id },
-            { LentMoneyHistory: { $elemMatch: { _id: lentMoneyId } } },
-        );
-
-        if (!lentMoneyObject || lentMoneyObject.LentMoneyHistory.length === 0) {
-            throw new ApiError(400, 'Lent Money record not found');
-        }
-
-        const lentMoneyEntry = lentMoneyObject.LentMoneyHistory[0];
+        const lentMoneyEntry = await userRepository.findLentMoneyEntry(user._id, lentMoneyId);
         if (!lentMoneyEntry) {
             throw new ApiError(400, 'Lent Money record not found');
         }
-        const price = lentMoneyEntry.price;
 
-        const result = await UserModel.updateOne(
-            { _id: user._id, 'LentMoneyHistory._id': lentMoneyId },
-            {
-                $pull: {
-                    LentMoneyHistory: { _id: lentMoneyId },
-                },
-            },
+        const price = lentMoneyEntry.price;
+        const newPocketMoney = parseFloat(user.currentPocketMoney) + parseFloat(price);
+
+        const removed = await userRepository.removeLentMoneyEntry(
+            user._id,
+            lentMoneyId,
+            newPocketMoney.toString(),
         );
 
-        if (result.modifiedCount === 0) {
+        if (!removed) {
             throw new ApiError(404, 'Lent money record not found');
         }
-
-        const newPocketMoney = parseFloat(user.currentPocketMoney) + parseFloat(price);
-        user.currentPocketMoney = newPocketMoney.toString();
-        await user.save();
 
         res.status(201).json(
             new ApiResponse(
@@ -633,9 +606,7 @@ export const SignWithGoogleAuthentication = asyncHandler(
         }
 
         const { sub: googleId, email, name, picture } = payload;
-        let existedUser = await UserModel.findOne({
-            $or: [{ googleId }, { email }],
-        });
+        let existedUser = await userRepository.findByGoogleIdOrEmail(googleId, email);
 
         if (!existedUser) {
             const createdUser = await createUserAndSendVerification(
@@ -652,7 +623,10 @@ export const SignWithGoogleAuthentication = asyncHandler(
         }
 
         await createSession(existedUser, req);
-        return res.status(200).json(new ApiResponse(200, existedUser, 'Login Successfully!!'));
+        const loggedInUser = await userRepository.findById(existedUser._id);
+        return res
+            .status(200)
+            .json(new ApiResponse(200, loggedInUser, 'Login Successfully!!'));
     },
 );
 
@@ -695,16 +669,13 @@ export const deleteActiveSession = asyncHandler(
         }
 
         const sessionToDelete = user.activeSessions.find(
-            (session: ActiveSession) => session._id?.toString() === sessionId,
+            (session: ActiveSession) => session._id === sessionId,
         );
         if (!sessionToDelete) {
             throw new ApiError(404, 'Session not found');
         }
 
-        user.activeSessions = user.activeSessions.filter(
-            (session: ActiveSession) => session._id?.toString() !== sessionId,
-        );
-        await user.save();
+        await userRepository.removeSessionById(user._id, sessionId);
 
         return res.status(200).json(new ApiResponse(200, null, 'Session deleted successfully'));
     },
@@ -716,8 +687,7 @@ export const deleteAllActiveSessions = asyncHandler(async (req: Request, res: Re
     if (!user) {
         throw new ApiError(401, 'User not authenticated');
     }
-    user.activeSessions = [];
-    await user.save();
+    await userRepository.removeAllSessions(user._id);
 
     return res
         .status(200)

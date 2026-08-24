@@ -1,9 +1,9 @@
-import type { UserDocument } from '../models/user.model.js';
+import type { User } from './user.types.js';
 
 declare global {
     namespace Express {
         interface Request {
-            user: UserDocument;
+            user: User;
             token: string;
             file?: {
                 path: string;
