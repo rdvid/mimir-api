@@ -12,22 +12,23 @@ export const generateAccessToken = (user) => {
         throw new Error('ACCESS_TOKEN_SECRET_KEY is not configured');
     }
     return signToken({
-        _id: user._id,
+        id: user.id,
         email: user.email,
         name: user.name,
     }, accessSecret, process.env.ACCESS_TOKEN_SECRET_EXPIRY);
 };
-export const generateResetPasswordToken = (userId) => {
-    const resetSecret = process.env.RESET_PASSWORD_TOKEN_SECRET;
-    if (!resetSecret) {
-        throw new Error('RESET_PASSWORD_TOKEN_SECRET is not configured');
+export const verifyAccessToken = (token) => {
+    const accessSecret = process.env.ACCESS_TOKEN_SECRET_KEY;
+    if (!accessSecret) {
+        throw new Error('ACCESS_TOKEN_SECRET_KEY is not configured');
     }
-    return signToken({ _id: userId }, resetSecret, process.env.RESET_PASSWORD_TOKEN_SECRET_EXPIRY);
-};
-export const generateAccountVerificationToken = (userId) => {
-    const verificationSecret = process.env.ACCOUNT_VERIFICATION_TOKEN_SECRET;
-    if (!verificationSecret) {
-        throw new Error('ACCOUNT_VERIFICATION_TOKEN_SECRET is not configured');
+    const decoded = jwt.verify(token, accessSecret);
+    if (typeof decoded === 'string') {
+        throw new Error('Invalid token payload');
     }
-    return signToken({ _id: userId }, verificationSecret, process.env.ACCOUNT_VERIFICATION_TOKEN_SECRET_EXPIRY);
+    const { id, email, name } = decoded;
+    if (!id || !email || !name) {
+        throw new Error('Invalid token payload');
+    }
+    return { id, email, name };
 };

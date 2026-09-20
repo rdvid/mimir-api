@@ -10,8 +10,8 @@
     "scripts": {
         "start": "node dist/src/index.js",
         "dev": "tsx watch src/index.ts",
-        "docker:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
-        "docker:dev:down": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down",
+        "docker:dev": "make dev",
+        "docker:dev:down": "make down",
         "build": "tsc -p tsconfig.json",
         "migrate": "tsx node_modules/knex/bin/cli.js migrate:latest --knexfile knexfile.ts",
         "format": "npx prettier --write ."
@@ -20,31 +20,24 @@
     "license": "MIT",
     "dependencies": {
         "bcrypt": "^6.0.0",
-        "cloudinary": "^2.10.1",
-        "cookie-parser": "^1.4.7",
         "cors": "^2.8.5",
         "dotenv": "^17.2.1",
         "express": "^4.22.2",
-        "google-auth-library": "^11.0.2",
         "jsonwebtoken": "^9.0.3",
         "knex": "^3.1.0",
         "morgan": "^1.11.0",
-        "multer": "^2.0.2",
-        "nodemailer": "^9.0.5",
         "pg": "^8.16.3",
-        "ua-parser-js": "^2.0.10"
+        "swagger-ui-express": "^5.0.1"
     },
     "devDependencies": {
         "@types/bcrypt": "^6.0.0",
-        "@types/cookie-parser": "^1.4.9",
         "@types/cors": "^2.8.19",
         "@types/express": "^5.0.6",
         "@types/jsonwebtoken": "^9.0.10",
         "@types/morgan": "^1.9.10",
-        "@types/multer": "^2.0.0",
         "@types/node": "^24.3.0",
-        "@types/nodemailer": "^6.4.17",
         "@types/pg": "^8.15.5",
+        "@types/swagger-ui-express": "^4.1.8",
         "prettier": "^3.6.2",
         "tsx": "^4.20.5",
         "typescript": "^5.9.2"

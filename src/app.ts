@@ -1,9 +1,17 @@
-import express, { type Request, type Response } from 'express';
+import express, {
+    type ErrorRequestHandler,
+    type NextFunction,
+    type Request,
+    type Response,
+} from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import userRoutes from './routes/user.routes.js';
-import userReportRoutes from './routes/report.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import transactionRoutes from './routes/transactions.routes.js';
+import summaryRoutes from './routes/summary.routes.js';
+import categoryRoutes from './routes/categories.routes.js';
+import { setupSwagger } from './swagger/setup.js';
+import { ApiError } from './utils/ApiError.js';
 
 const app = express();
 
@@ -11,24 +19,14 @@ app.set('trust proxy', true);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.use(
-  cors({
-    origin: (
-      origin: string | undefined,
-      callback: (err: Error | null, allow?: boolean) => void,
-    ) => {
-      if (!origin || /\.lokeshwardewangan\.in$/.test(origin) || /\.vercel\.app$/.test(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-  }),
+    cors({
+        origin: true,
+        credentials: true,
+    }),
 );
 
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static('public'));
-app.use(cookieParser());
 
 interface WelcomeResponseBody {
     message: string;
@@ -38,14 +36,45 @@ const getWelcomeHandler = (
     _req: Request<Record<string, never>, WelcomeResponseBody, Record<string, never>>,
     res: Response<WelcomeResponseBody>,
 ): void => {
-    res.json({ message: 'Welcome to Budgetter API' });
+    res.json({ message: 'Welcome to Mimir API' });
 };
 
-// Welcome route
 app.get('/', getWelcomeHandler);
 
-// Api EndPoints
-app.use('/api/user', userRoutes);
-app.use('/api/user/report', userReportRoutes);
+setupSwagger(app);
+
+app.use('/auth', authRoutes);
+app.use('/transactions', transactionRoutes);
+app.use('/summary', summaryRoutes);
+app.use('/categories', categoryRoutes);
+
+const errorHandler: ErrorRequestHandler = (
+    err: unknown,
+    _req: Request,
+    res: Response,
+    _next: NextFunction,
+): void => {
+    if (err instanceof ApiError) {
+        res.status(err.statusCode).json({
+            statusCode: err.statusCode,
+            data: err.data,
+            message: err.message,
+            success: false,
+            errors: err.errors,
+        });
+        return;
+    }
+
+    console.error(err);
+    res.status(500).json({
+        statusCode: 500,
+        data: null,
+        message: 'Internal Server Error',
+        success: false,
+        errors: [],
+    });
+};
+
+app.use(errorHandler);
 
 export { app };

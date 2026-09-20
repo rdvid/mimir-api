@@ -1,14 +1,12 @@
 import nodemailer from 'nodemailer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const publicDir = path.join(process.cwd(), 'public');
 const sendMessageToUser = async (userName, type, userEmail, subject, token, html = null) => {
     const serverURL = process.env.SERVER_URL;
     let customizedHTML = null;
     if (type === 'RESET_PASSWORD') {
-        const resetPasswordTemplatePath = path.join(__dirname, '../../public/email-template/reset-password-template.html');
+        const resetPasswordTemplatePath = path.join(publicDir, 'email-template/reset-password-template.html');
         const htmlContent = fs.readFileSync(resetPasswordTemplatePath, 'utf-8');
         const resetLink = `${serverURL}/api/user/reset-password/validate/?token=${token ?? ''}`;
         customizedHTML = htmlContent
@@ -16,7 +14,7 @@ const sendMessageToUser = async (userName, type, userEmail, subject, token, html
             .replace('{userName}', userName ?? '');
     }
     else if (type === 'VERIFY_ACCOUNT') {
-        const accountVerificationTemplatePath = path.join(__dirname, '../../public/email-template/account-verification.html');
+        const accountVerificationTemplatePath = path.join(publicDir, 'email-template/account-verification.html');
         const htmlContent = fs.readFileSync(accountVerificationTemplatePath, 'utf-8');
         const resetLink = `${serverURL}/api/user/account-verification/?token=${token ?? ''}`;
         customizedHTML = htmlContent
@@ -24,7 +22,7 @@ const sendMessageToUser = async (userName, type, userEmail, subject, token, html
             .replace('{userName}', userName ?? '');
     }
     else if (type === 'DELETE_ACCOUNT') {
-        const deleteAccountTemplatePath = path.join(__dirname, '../../public/email-template/account-delete.html');
+        const deleteAccountTemplatePath = path.join(publicDir, 'email-template/account-delete.html');
         const htmlContent = fs.readFileSync(deleteAccountTemplatePath, 'utf-8');
         customizedHTML = htmlContent.replace('{userName}', userName ?? '');
     }

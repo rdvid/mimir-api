@@ -6,6 +6,8 @@ services:
     api:
         build:
             dockerfile: Dockerfile.dev
+        env_file:
+            - .local.env
         volumes:
             - .:/app
             - api_node_modules:/app/node_modules
