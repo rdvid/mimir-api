@@ -5,13 +5,25 @@ Minimal JWT-authenticated API for tracking income/expenses with filterable lists
 ## Quick start (Docker + hot reload)
 
 ```bash
-make nuke   # wipe old schema after MVP rewrite
+make nuke   # wipe DB if needed
 make up     # or: make dev
 ```
 
 - API: http://localhost:5000  
-- Swagger: http://localhost:5000/api/docs  
+- Swagger UI: http://localhost:5000/api/docs  
+- ReDoc: http://localhost:5000/api/redoc  
+- OpenAPI JSON: http://localhost:5000/api/docs.json  
 
+### Demo showcase account
+
+Dev compose sets `SEED_DEMO=true`, so on boot you get:
+
+| Field | Value |
+|-------|--------|
+| Email | `demo@mimir.local` |
+| Password | `demo1234` |
+
+Includes default categories plus ~17 sample transactions over the last ~30 days (salary, rent, groceries, etc.). Seed is idempotent — safe across restarts. Use `make nuke && make up` to reset.
 ## Endpoints
 
 | Method | Path | Auth |
@@ -52,7 +64,8 @@ Authorization: Bearer <token>
 | Command | Description |
 |---------|-------------|
 | `make help` | List targets |
-| `make up` / `make dev` | Start stack (background / foreground) |
+| `make up` / `make dev` | Start stack with demo seed |
+| `make seed` | Re-run demo seed (no-op if already present) |
 | `make down` | Stop |
 | `make logs` | API logs |
 | `make nuke` | Wipe volumes (required after schema changes) |

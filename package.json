@@ -14,6 +14,7 @@
         "docker:dev:down": "make down",
         "build": "tsc -p tsconfig.json",
         "migrate": "tsx node_modules/knex/bin/cli.js migrate:latest --knexfile knexfile.ts",
+        "seed:demo": "tsx src/db/seed-demo-cli.ts",
         "format": "npx prettier --write ."
     },
     "author": "Rafael David",

@@ -30,13 +30,27 @@ app.use(express.static('public'));
 
 interface WelcomeResponseBody {
     message: string;
+    docs: {
+        swagger: string;
+        redoc: string;
+        openapi: string;
+        export: string;
+    };
 }
 
 const getWelcomeHandler = (
     _req: Request<Record<string, never>, WelcomeResponseBody, Record<string, never>>,
     res: Response<WelcomeResponseBody>,
 ): void => {
-    res.json({ message: 'Welcome to Mimir API' });
+    res.json({
+        message: 'Welcome to Mimir API',
+        docs: {
+            swagger: '/api/docs',
+            redoc: '/api/redoc',
+            openapi: '/api/docs.json',
+            export: '/api/docs.json?download=1',
+        },
+    });
 };
 
 app.get('/', getWelcomeHandler);
