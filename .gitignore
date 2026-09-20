@@ -32,3 +32,5 @@ temp/
 
 # Coverage directory used by testing tools like jest
 coverage/
+
+dist
