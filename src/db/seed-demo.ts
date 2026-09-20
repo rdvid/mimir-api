@@ -3,9 +3,9 @@ import { transactionRepository } from '../repositories/transaction.repository.js
 import { userRepository } from '../repositories/user.repository.js';
 import type { TransactionType } from '../types/transaction.types.js';
 
-export const DEMO_EMAIL = 'demo@mimir.local';
-export const DEMO_PASSWORD = 'demo1234';
-export const DEMO_NAME = 'Demo User';
+export const DEMO_EMAIL = 'admin@example.com';
+export const DEMO_PASSWORD = 'admin';
+export const DEMO_NAME = 'Admin';
 
 const daysAgo = (days: number): string => {
     const date = new Date();

@@ -165,8 +165,8 @@ When `SEED_DEMO=true` (enabled in the Docker Compose **dev** overlay), boot crea
 
 | Field | Value |
 |-------|--------|
-| Email | `demo@mimir.local` |
-| Password | `demo1234` |
+| Email | `admin@example.com` |
+| Password | `admin` |
 
 Includes default categories and sample transactions over the last ~30 days. Seed is idempotent; reset with `make nuke && make up`.
 
@@ -176,7 +176,7 @@ Includes default categories and sample transactions over the last ~30 days. Seed
 # Login
 TOKEN=$(curl -s -X POST http://localhost:5000/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"demo@mimir.local","password":"demo1234"}' \
+  -d '{"email":"admin@example.com","password":"admin"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['token'])")
 
 # Past week expenses

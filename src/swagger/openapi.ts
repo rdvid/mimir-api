@@ -199,8 +199,8 @@ export const openApiSpec = {
                 required: ['id', 'email', 'name'],
                 properties: {
                     id: { type: 'string', format: 'uuid' },
-                    email: { type: 'string', format: 'email', example: 'demo@mimir.local' },
-                    name: { type: 'string', example: 'Demo User' },
+                    email: { type: 'string', format: 'email', example: 'admin@example.com' },
+                    name: { type: 'string', example: 'Admin' },
                     createdAt: { type: 'string', format: 'date-time' },
                     updatedAt: { type: 'string', format: 'date-time' },
                 },
@@ -235,8 +235,8 @@ export const openApiSpec = {
                 type: 'object',
                 required: ['email', 'password'],
                 properties: {
-                    email: { type: 'string', format: 'email', example: 'demo@mimir.local' },
-                    password: { type: 'string', format: 'password', example: 'demo1234' },
+                    email: { type: 'string', format: 'email', example: 'admin@example.com' },
+                    password: { type: 'string', format: 'password', example: 'admin' },
                 },
             },
             Category: {
@@ -442,8 +442,8 @@ export const openApiSpec = {
                                 demo: {
                                     summary: 'Demo showcase user',
                                     value: {
-                                        email: 'demo@mimir.local',
-                                        password: 'demo1234',
+                                        email: 'admin@example.com',
+                                        password: 'admin',
                                     },
                                 },
                             },

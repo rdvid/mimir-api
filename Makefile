@@ -13,11 +13,11 @@ setup: ## Create .local.env from .env.default (if missing) and link .env for dot
 	@echo "Ready — edit $(ENV_FILE) with your secrets if needed."
 
 dev: setup ## Start dev stack with hot reload + demo seed (foreground)
-	@echo "Demo login: demo@mimir.local / demo1234"
+	@echo "Demo login: admin@example.com / admin"
 	$(COMPOSE) up --build $(COMPOSE_FLAGS)
 
 up: setup ## Start dev stack in background (with demo seed)
-	@echo "Demo login: demo@mimir.local / demo1234"
+	@echo "Demo login: admin@example.com / admin"
 	$(COMPOSE) up --build -d $(COMPOSE_FLAGS)
 	@echo "API: http://localhost:$${PORT:-5000}"
 	@echo "Swagger: http://localhost:$${PORT:-5000}/api/docs"
